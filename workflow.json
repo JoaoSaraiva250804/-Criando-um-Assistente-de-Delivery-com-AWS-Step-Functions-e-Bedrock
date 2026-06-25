@@ -1,0 +1,56 @@
+{
+  "Comment": "Assistente de Delivery Orquestrado com Step Functions e Bedrock",
+  "StartAt": "ValidarPedido",
+  "States": {
+    "ValidarPedido": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:ValidarPedidoFunction",
+      "Next": "ProcessarPagamento"
+    },
+    "ProcessarPagamento": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:ProcessarPagamentoFunction",
+      "Next": "VerificarSucessoPagamento"
+    },
+    "VerificarSucessoPagamento": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.pagamentoStatus",
+          "StringEquals": "SUCESSO",
+          "Next": "ChamarBedrockPersonalizacao"
+        }
+      ],
+      "Default": "NotificarFalhaPagamento"
+    },
+    "ChamarBedrockPersonalizacao": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::bedrock:invokeModel",
+      "Parameters": {
+        "ModelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "Body": {
+          "anthropic_version": "bedrock-2023-05-31",
+          "max_tokens": 200,
+          "messages": [
+            {
+              "role": "user",
+              "content": "Gere uma mensagem curta e simpática confirmando o pedido de um cliente e sugerindo um agradecimento criativo."
+            }
+          ]
+        }
+      },
+      "ResultPath": "$.bedrockResponse",
+      "Next": "EnviarParaCozinha"
+    },
+    "EnviarParaCozinha": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:123456789012:function:EnviarCozinhaFunction",
+      "End": true
+    },
+    "NotificarFalhaPagamento": {
+      "Type": "Fail",
+      "Error": "PaymentFailedException",
+      "Cause": "O pagamento foi recusado ou falhou."
+    }
+  }
+}
